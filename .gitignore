@@ -1,0 +1,7 @@
+.DS_Store
+*.log
+*.tmp
+# 실습 중 생성될 수 있는 파일 / Files that may be created during labs
+hello.txt
+*.pem
+id_rsa*

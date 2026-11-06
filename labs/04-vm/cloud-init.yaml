@@ -1,0 +1,32 @@
+#cloud-config
+# VM이 처음 부팅될 때 한 번 실행되는 초기 설정입니다.
+# Runs once on the VM's first boot.
+package_update: true
+packages:
+  - nginx
+
+write_files:
+  - path: /var/www/html/index.html
+    content: |
+      <!doctype html>
+      <html lang="ko">
+      <head>
+        <meta charset="utf-8">
+        <title>Azure VM</title>
+        <style>
+          body { font-family: system-ui, sans-serif; background: #0b2a4a; color: #fff;
+                 display: grid; place-items: center; min-height: 100vh; margin: 0; text-align: center; }
+        </style>
+      </head>
+      <body>
+        <main>
+          <h1>🖥️ Hello from Azure VM!</h1>
+          <p>Hostname: <b>__HOSTNAME__</b></p>
+          <p>cloud-init으로 자동 설치된 nginx 웹서버입니다.<br>An nginx web server installed by cloud-init.</p>
+        </main>
+      </body>
+      </html>
+
+runcmd:
+  - sed -i "s/__HOSTNAME__/$(hostname)/" /var/www/html/index.html
+  - systemctl enable --now nginx
