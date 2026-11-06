@@ -1,6 +1,6 @@
 # Lab 4. Azure Virtual Machines — Auto-install a Web Server with cloud-init
 
-⏱️ ~25 min · 💰 Billed while the VM runs (B1s is well under a few cents/hour, varies by region and time. Delete when done!)
+⏱️ ~25 min · 💰 Billed while the VM runs (`Standard_B2ats_v2` is well under a few cents/hour, varies by region and time. Delete when done!)
 
 ## 🎯 Goals
 
@@ -13,7 +13,7 @@
 | Term | In plain words |
 |---|---|
 | **IaaS** | You rent a server (VM) and manage everything from the OS up. |
-| **VM size** | CPU/memory spec. `Standard_B1s` is a cheap 1 vCPU / 1 GB starter size. |
+| **VM size** | CPU/memory spec. `Standard_B2ats_v2` is a cheap 2 vCPU / 1 GB starter size (the older `B1s` is no longer offered in some regions). |
 | **cloud-init** | A config file that installs packages and creates files automatically on first boot. |
 | **Public IP** | The address used to reach the VM from the internet. |
 | **SSH key** | A key pair used instead of a password: private key stays with you, public key goes on the VM. |
@@ -51,7 +51,7 @@ az vm create \
   --resource-group $RG \
   --name $VM \
   --image Ubuntu2204 \
-  --size Standard_B1s \
+  --size Standard_B2ats_v2 \
   --vnet-name $VNET \
   --subnet snet-web \
   --nsg "" \
@@ -172,7 +172,7 @@ az group delete --name $RG --yes --no-wait
 |---|---|
 | `curl` refused/timeout from the start | Did you wait for cloud-init (Step 4)? Does `nsg-web` have `Allow-HTTP` and is it attached to the subnet? |
 | `ssh: Permission denied (publickey)` | Check `ls ~/.ssh/id_rsa*`. If you recreated the Codespace the key is gone; recreate the VM. |
-| `ssh` times out | Run the SSH-rule IP update command in Step 6. |
+| `ssh` times out | Run the SSH-rule IP update command in Step 6. If it still fails, behind a corporate network/VPN/proxy the IP Azure sees can differ from what `api.ipify.org` reports. Temporarily set the rule's source to `*`, connect, run `echo $SSH_CLIENT` on the VM to see the real IP, then restore the rule with that IP. |
 | `cloud-init status` is `error` | On the VM: `sudo cat /var/log/cloud-init-output.log`. |
 | `--custom-data` file not found | Run from the repo root (`pwd`). |
 

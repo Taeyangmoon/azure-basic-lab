@@ -8,7 +8,7 @@ param prefix string = 'azlab'
 param location string = resourceGroup().location
 
 @description('VM 크기 / VM size')
-param vmSize string = 'Standard_B1s'
+param vmSize string = 'Standard_B2ats_v2'
 
 @description('VM 관리자 계정 / VM admin username')
 param adminUsername string = 'azureuser'
@@ -126,6 +126,11 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
   }
 }
 
+resource webSubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' existing = {
+  parent: vnet
+  name: webSubnetName
+}
+
 resource pip 'Microsoft.Network/publicIPAddresses@2023-11-01' = {
   name: 'pip-${vmName}'
   location: location
@@ -147,7 +152,7 @@ resource nic 'Microsoft.Network/networkInterfaces@2023-11-01' = {
         properties: {
           privateIPAllocationMethod: 'Dynamic'
           subnet: {
-            id: vnet.properties.subnets[0].id
+            id: webSubnet.id
           }
           publicIPAddress: {
             id: pip.id

@@ -1,6 +1,6 @@
 # 실습 4. Azure Virtual Machines — cloud-init으로 웹서버 자동 설치
 
-⏱️ 약 25분 · 💰 VM 실행 시간만큼 과금 (B1s 기준 시간당 수십 원 미만, 리전·시점에 따라 다름. 끝나면 반드시 삭제!)
+⏱️ 약 25분 · 💰 VM 실행 시간만큼 과금 (`Standard_B2ats_v2` 기준 시간당 수십 원 미만, 리전·시점에 따라 다름. 끝나면 반드시 삭제!)
 
 ## 🎯 목표
 
@@ -13,7 +13,7 @@
 | 용어 | 쉬운 설명 |
 |---|---|
 | **IaaS** | 서버(VM)를 빌려 쓰고 OS 이후는 내가 관리하는 방식 |
-| **VM 크기** | CPU/메모리 사양. `Standard_B1s`는 1 vCPU / 1GB의 저렴한 입문용 |
+| **VM 크기** | CPU/메모리 사양. `Standard_B2ats_v2`는 2 vCPU / 1GB의 저렴한 입문용 (예전 `B1s`는 리전에 따라 더 이상 제공되지 않습니다) |
 | **cloud-init** | VM 첫 부팅 때 자동으로 패키지 설치·파일 생성을 해주는 설정 파일 |
 | **공인 IP** | 인터넷에서 VM에 접속하기 위한 주소 |
 | **SSH 키** | 비밀번호 대신 쓰는 열쇠 쌍. 개인키는 내 환경에, 공개키는 VM에 둡니다. |
@@ -51,7 +51,7 @@ az vm create \
   --resource-group $RG \
   --name $VM \
   --image Ubuntu2204 \
-  --size Standard_B1s \
+  --size Standard_B2ats_v2 \
   --vnet-name $VNET \
   --subnet snet-web \
   --nsg "" \
@@ -172,7 +172,7 @@ az group delete --name $RG --yes --no-wait
 |---|---|
 | `curl` 연결 거부/시간 초과 (처음부터) | 4단계 cloud-init 완료 대기를 했는지, `nsg-web`에 `Allow-HTTP`가 있고 서브넷에 연결됐는지 확인 |
 | `ssh: Permission denied (publickey)` | `ls ~/.ssh/id_rsa*` 확인. Codespace를 새로 만들었다면 키가 없으므로 VM을 다시 만드세요. |
-| `ssh` 시간 초과 | 위 6단계의 SSH 규칙 IP 갱신 명령 실행 |
+| `ssh` 시간 초과 | 위 6단계의 SSH 규칙 IP 갱신 명령을 실행하세요. 그래도 안 되면 회사망/VPN/프록시 때문에 Azure가 보는 출발지 IP가 `api.ipify.org` 결과와 다를 수 있습니다. 규칙의 출발지를 잠시 `*`로 열고 접속한 뒤 VM에서 `echo $SSH_CLIENT`로 실제 IP를 확인해 그 IP로 되돌리세요. |
 | `cloud-init status`가 `error` | VM 안에서 `sudo cat /var/log/cloud-init-output.log` 확인 |
 | `--custom-data` 파일을 찾을 수 없음 | 저장소 루트에서 실행했는지 확인 (`pwd`) |
 

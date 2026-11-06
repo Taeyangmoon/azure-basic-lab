@@ -121,7 +121,9 @@ az deployment group what-if -g $RG --template-file labs/05-bicep/main.bicep \
   --parameters sshPublicKey="$(cat ~/.ssh/id_rsa.pub)" sshSourceCidr="$MY_IP/32"
 ```
 
-It reports no changes. Now edit `main.bicep`: change the `Allow-HTTP` rule's `destinationPortRange: '80'` to `'8080'` and run what-if again. **Only that part** shows up as `~ Modify`.
+The VM, NSGs and VNet show `= Nochange`. (The NIC or public IP may show `~ Modify` because of defaults Azure fills in; that's known what-if noise, not a real change.)
+
+Now edit `main.bicep`: change the `Allow-HTTP` rule's `destinationPortRange: '80'` to `'8080'` and run what-if again. `nsg-web` shows `~ properties.destinationPortRange: "80" => "8080"`.
 
 Revert it to `'80'` afterwards.
 
@@ -143,14 +145,14 @@ If you haven't yet deleted the Lab 3–4 group (`rg-azlab-net`), remove everythi
 
 - [ ] You previewed changes with `what-if` before deploying.
 - [ ] The deployment served the same web page as Lab 4.
-- [ ] Re-running what-if on the same template showed no changes.
+- [ ] Re-running what-if on the same template showed no changes for the VM, NSGs and VNet.
 - [ ] All `rg-azlab-*` groups are deleted. (`az group list -o table`)
 
 ## 🛠️ Troubleshooting
 
 | Symptom | Fix |
 |---|---|
-| `SkuNotAvailable` | Pass another size, e.g. `--parameters vmSize=Standard_B2s` (see [Lab 4](../04-vm/README.en.md) for listing sizes). |
+| `SkuNotAvailable` | Pass another size, e.g. `--parameters vmSize=Standard_B2s_v2` (see [Lab 4](../04-vm/README.en.md) for listing sizes). |
 | `InvalidTemplateDeployment` with an SSH key error | Make sure `cat ~/.ssh/id_rsa.pub` is a single line starting with `ssh-rsa`. |
 | `curl` fails | Do the cloud-init wait (Step 6) first. |
 

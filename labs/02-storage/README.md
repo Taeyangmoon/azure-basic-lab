@@ -30,14 +30,14 @@ SUFFIX=$(az account show --query id -o tsv | md5sum | cut -c1-8)
 STORAGE=stazlab$SUFFIX
 echo $STORAGE
 
-# 실습 편의를 위해 계정 키로 데이터 작업을 수행합니다 (아래 💡 참고)
-export AZURE_STORAGE_AUTH_MODE=key
+# 데이터 작업(업로드 등)은 계정 키 대신 내 Entra ID 로그인으로 인증합니다
+export AZURE_STORAGE_AUTH_MODE=login
 export AZURE_STORAGE_ACCOUNT=$STORAGE
 
 az group create --name $RG --location $LOCATION --tags purpose=azlab
 ```
 
-> 💡 운영 환경에서는 계정 키 대신 **Microsoft Entra ID 인증**(`--auth-mode login`)과 RBAC 역할(Storage Blob Data Contributor)을 권장합니다. 이 실습은 단순함을 위해 키를 사용합니다.
+> 💡 계정 키 대신 **Microsoft Entra ID 인증**(`--auth-mode login`)을 씁니다. 더 안전하고, 조직 정책으로 키 인증이 막힌 구독(`KeyBasedAuthenticationNotPermitted`)에서도 동작합니다. 대신 3단계 전에 내 계정에 데이터 접근 **RBAC 역할**을 부여해야 합니다.
 
 > ⚠️ 터미널을 새로 열었다면 위 변수 블록을 다시 실행하세요.
 
@@ -56,6 +56,19 @@ az storage account create \
 
 - `--allow-blob-public-access false`: 익명 공개를 계정 수준에서 막는 보안 설정입니다.
 - 1~2분 걸립니다.
+
+내 계정에 Blob 데이터 역할을 부여합니다. (관리 권한인 Owner/Contributor만으로는 데이터를 읽고 쓸 수 없습니다.)
+
+```bash
+az role assignment create \
+  --assignee-object-id $(az ad signed-in-user show --query id -o tsv) \
+  --assignee-principal-type User \
+  --role "Storage Blob Data Contributor" \
+  --scope $(az storage account show --name $STORAGE --resource-group $RG --query id -o tsv)
+
+# 역할이 적용되기까지 1~2분 걸릴 수 있습니다
+sleep 60
+```
 
 ## 3단계. Blob 업로드
 
@@ -76,7 +89,7 @@ az storage blob list --container-name docs --query "[].{Name:name, Size:properti
 curl -i https://$STORAGE.blob.core.windows.net/docs/hello.txt
 ```
 
-`409 PublicAccessNotPermitted` 또는 `404` 같은 **오류**가 나오면 정상입니다. 파일은 안전하게 비공개 상태입니다.
+`409 PublicAccessNotPermitted`, `403`, `404` 같은 **오류**가 나오면 정상입니다. 파일은 안전하게 비공개 상태입니다.
 
 ## 5단계. SAS 토큰으로 임시 공유
 
@@ -86,7 +99,7 @@ curl -i https://$STORAGE.blob.core.windows.net/docs/hello.txt
 EXPIRY=$(date -u -d "+10 minutes" '+%Y-%m-%dT%H:%MZ')
 URL=$(az storage blob generate-sas \
   --container-name docs --name hello.txt \
-  --permissions r --expiry $EXPIRY --https-only --full-uri -o tsv)
+  --permissions r --expiry $EXPIRY --https-only --full-uri --as-user -o tsv)
 
 curl "$URL"
 ```
@@ -134,7 +147,9 @@ rm -f hello.txt
 |---|---|
 | `StorageAccountAlreadyTaken` | 이름이 중복됩니다. `STORAGE=stazlab$SUFFIX$RANDOM`처럼 숫자를 덧붙이세요. |
 | `date: invalid date` | macOS 로컬에서 실행한 경우입니다. Codespaces(Linux)에서 실행하세요. |
-| 업로드 시 `AuthorizationFailure` | `echo $AZURE_STORAGE_AUTH_MODE`가 `key`인지 확인하고, 1단계 변수 블록을 다시 실행하세요. |
+| 업로드 시 `AuthorizationPermissionMismatch` | 2단계의 역할 부여를 했는지 확인하고 1~2분 더 기다리세요. |
+| 업로드 시 `AuthorizationFailure` / "network rules" 메시지 | 1단계 변수 블록(`AZURE_STORAGE_AUTH_MODE=login`)을 다시 실행하세요. 그래도 같으면 아래 "조직 정책" 항목을 보세요. |
+| `az storage account show ... --query publicNetworkAccess`가 `Disabled`이고 바꿔도 되돌아감 | 조직/테넌트 정책이 스토리지 공용 접근을 강제로 막은 것입니다. 이 경우 5·6단계(SAS, 정적 웹사이트)는 인터넷에서 접근할 수 없어 진행할 수 없습니다. 정책이 없는 개인 무료 구독이나 관리자에게 예외를 요청하세요. |
 | 웹사이트가 403/404 | 6단계 `--static-website`를 실행했는지, 파일이 `$web`에 있는지 `az storage blob list -c '$web' -o table`로 확인하세요. |
 
 ⬅️ 이전: [실습 1](../01-setup/README.md) · ➡️ 다음: [실습 3. VNet과 NSG](../03-network/README.md)

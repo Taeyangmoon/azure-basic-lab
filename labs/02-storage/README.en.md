@@ -30,14 +30,14 @@ SUFFIX=$(az account show --query id -o tsv | md5sum | cut -c1-8)
 STORAGE=stazlab$SUFFIX
 echo $STORAGE
 
-# For simplicity, data operations use the account key (see the note below)
-export AZURE_STORAGE_AUTH_MODE=key
+# Data operations (uploads etc.) authenticate with your Entra ID login instead of the account key
+export AZURE_STORAGE_AUTH_MODE=login
 export AZURE_STORAGE_ACCOUNT=$STORAGE
 
 az group create --name $RG --location $LOCATION --tags purpose=azlab
 ```
 
-> 💡 In production prefer **Microsoft Entra ID** auth (`--auth-mode login`) with an RBAC role (Storage Blob Data Contributor) over account keys. The key is used here to keep the lab simple.
+> 💡 We use **Microsoft Entra ID** auth (`--auth-mode login`) instead of account keys. It's more secure and also works on subscriptions where policy blocks key auth (`KeyBasedAuthenticationNotPermitted`). In exchange you must grant yourself a data **RBAC role** (Step 2).
 
 > ⚠️ If you open a new terminal, run the variable block again.
 
@@ -56,6 +56,19 @@ az storage account create \
 
 - `--allow-blob-public-access false`: blocks anonymous public access at the account level.
 - Takes 1–2 minutes.
+
+Grant yourself a blob data role. (Management roles such as Owner/Contributor alone can't read or write data.)
+
+```bash
+az role assignment create \
+  --assignee-object-id $(az ad signed-in-user show --query id -o tsv) \
+  --assignee-principal-type User \
+  --role "Storage Blob Data Contributor" \
+  --scope $(az storage account show --name $STORAGE --resource-group $RG --query id -o tsv)
+
+# The role can take 1–2 minutes to take effect
+sleep 60
+```
 
 ## Step 3. Upload a blob
 
@@ -76,7 +89,7 @@ Try to reach the file without credentials.
 curl -i https://$STORAGE.blob.core.windows.net/docs/hello.txt
 ```
 
-An **error** such as `409 PublicAccessNotPermitted` or `404` is the expected result. The file is safely private.
+An **error** such as `409 PublicAccessNotPermitted`, `403` or `404` is the expected result. The file is safely private.
 
 ## Step 5. Share temporarily with a SAS token
 
@@ -86,7 +99,7 @@ Create a 10-minute, read-only link.
 EXPIRY=$(date -u -d "+10 minutes" '+%Y-%m-%dT%H:%MZ')
 URL=$(az storage blob generate-sas \
   --container-name docs --name hello.txt \
-  --permissions r --expiry $EXPIRY --https-only --full-uri -o tsv)
+  --permissions r --expiry $EXPIRY --https-only --full-uri --as-user -o tsv)
 
 curl "$URL"
 ```
@@ -134,7 +147,9 @@ rm -f hello.txt
 |---|---|
 | `StorageAccountAlreadyTaken` | Name collision. Append digits: `STORAGE=stazlab$SUFFIX$RANDOM`. |
 | `date: invalid date` | You're on macOS locally. Run in Codespaces (Linux). |
-| `AuthorizationFailure` on upload | Check `echo $AZURE_STORAGE_AUTH_MODE` is `key` and re-run the Step 1 variables. |
+| `AuthorizationPermissionMismatch` on upload | Make sure you granted the role in Step 2, then wait another 1–2 minutes. |
+| `AuthorizationFailure` / "network rules" message on upload | Re-run the Step 1 variables (`AZURE_STORAGE_AUTH_MODE=login`). If it persists, see the policy row below. |
+| `publicNetworkAccess` is `Disabled` and reverts when you change it (`az storage account show ... --query publicNetworkAccess`) | An organization/tenant policy forces storage public access off. Steps 5–6 (SAS, static website) can't be reached from the internet then. Use a personal free subscription without such policy, or ask your admin for an exception. |
 | Website returns 403/404 | Make sure `--static-website` ran and files are in `$web`: `az storage blob list -c '$web' -o table`. |
 
 ⬅️ Previous: [Lab 1](../01-setup/README.en.md) · ➡️ Next: [Lab 3. VNet and NSG](../03-network/README.en.md)

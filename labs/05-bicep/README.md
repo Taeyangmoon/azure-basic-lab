@@ -121,7 +121,9 @@ az deployment group what-if -g $RG --template-file labs/05-bicep/main.bicep \
   --parameters sshPublicKey="$(cat ~/.ssh/id_rsa.pub)" sshSourceCidr="$MY_IP/32"
 ```
 
-변경 없음(`No change`)으로 나옵니다. 이제 `main.bicep`에서 `nsgWeb`의 `Allow-HTTP` 규칙 `destinationPortRange: '80'`을 `'8080'`으로 바꾸고 다시 what-if 를 실행하면 **그 부분만** `~ Modify`로 표시됩니다.
+VM·NSG·VNet은 `= Nochange`로 나옵니다. (NIC나 공인 IP는 Azure가 채운 기본값 때문에 `~ Modify`로 보일 수 있지만, 이는 what-if의 알려진 노이즈이며 실제 변경은 없습니다.)
+
+이제 `main.bicep`에서 `nsgWeb`의 `Allow-HTTP` 규칙 `destinationPortRange: '80'`을 `'8080'`으로 바꾸고 다시 what-if 를 실행하면 `nsg-web`에 `~ properties.destinationPortRange: "80" => "8080"`이 표시됩니다.
 
 확인했다면 `'80'`으로 되돌리세요.
 
@@ -143,14 +145,14 @@ az group delete --name $RG --yes --no-wait
 
 - [ ] `what-if`로 배포 전 변경 사항을 확인했다.
 - [ ] 배포 결과가 실습 4와 같은 웹페이지를 보여 주었다.
-- [ ] 같은 템플릿을 다시 what-if 했을 때 변경이 없었다.
+- [ ] 같은 템플릿을 다시 what-if 했을 때 VM·NSG·VNet에 변경이 없었다.
 - [ ] 모든 `rg-azlab-*` 그룹을 삭제했다. (`az group list -o table`)
 
 ## 🛠️ 문제 해결
 
 | 증상 | 해결 |
 |---|---|
-| `SkuNotAvailable` | `--parameters vmSize=Standard_B2s` 처럼 다른 크기를 지정하세요. (사용 가능 크기 조회는 [실습 4](../04-vm/README.md) 참고) |
+| `SkuNotAvailable` | `--parameters vmSize=Standard_B2s_v2` 처럼 다른 크기를 지정하세요. (사용 가능 크기 조회는 [실습 4](../04-vm/README.md) 참고) |
 | `InvalidTemplateDeployment` + SSH 키 오류 | `cat ~/.ssh/id_rsa.pub`가 `ssh-rsa`로 시작하는 한 줄인지 확인 |
 | `curl` 안 됨 | cloud-init 대기(6단계)를 먼저 하세요. |
 

@@ -1,6 +1,6 @@
 #cloud-config
-# VM이 처음 부팅될 때 한 번 실행되는 초기 설정입니다.
 # Runs once on the VM's first boot.
+# (Keep this file ASCII-only: 'az vm create --custom-data' fails on non-ASCII characters.)
 package_update: true
 packages:
   - nginx
@@ -9,7 +9,7 @@ write_files:
   - path: /var/www/html/index.html
     content: |
       <!doctype html>
-      <html lang="ko">
+      <html lang="en">
       <head>
         <meta charset="utf-8">
         <title>Azure VM</title>
@@ -20,9 +20,9 @@ write_files:
       </head>
       <body>
         <main>
-          <h1>🖥️ Hello from Azure VM!</h1>
+          <h1>Hello from Azure VM!</h1>
           <p>Hostname: <b>__HOSTNAME__</b></p>
-          <p>cloud-init으로 자동 설치된 nginx 웹서버입니다.<br>An nginx web server installed by cloud-init.</p>
+          <p>An nginx web server installed by cloud-init.</p>
         </main>
       </body>
       </html>
