@@ -1,6 +1,6 @@
 # 실습 5. Bicep 기초 — 실습 3·4를 코드로 재현하기
 
-⏱️ 약 25분 · 💰 VM 실행 시간만큼 과금 (끝나면 삭제!)
+⏱️ 약 25분 · 💰 VM 실행 시간과 디스크·공인 IP 사용에 따라 과금 (끝나면 삭제!)
 
 ## 🎯 목표
 
@@ -37,7 +37,7 @@ LOCATION=koreacentral
 # SSH 키가 없다면 생성
 [ -f ~/.ssh/id_rsa.pub ] || ssh-keygen -t rsa -b 4096 -N "" -f ~/.ssh/id_rsa
 
-MY_IP=$(curl -s https://api.ipify.org)
+MY_IP=$(curl -fsS --max-time 20 https://api.ipify.org)
 echo $MY_IP
 
 az group create --name $RG --location $LOCATION --tags purpose=azlab
@@ -103,7 +103,7 @@ az vm run-command invoke -g $RG -n vm-web01 --command-id RunShellScript \
   --scripts "cloud-init status --wait" --query "value[0].message" -o tsv
 
 IP=$(az deployment group show -g $RG -n main --query properties.outputs.publicIp.value -o tsv)
-curl http://$IP
+curl --fail --max-time 10 http://$IP
 ```
 
 실습 4와 **똑같은 웹페이지**가 나옵니다. 20여 개 명령이 파일 하나로 대체되었습니다. 🎉
@@ -114,7 +114,17 @@ az resource list -g $RG -o table
 
 ## 7단계. 멱등성과 변경 확인
 
-**같은 파일을 다시** what-if 해봅니다.
+먼저 **같은 파일을 다시 배포**해도 기존 리소스가 유지되는지 확인합니다.
+
+```bash
+az deployment group create -g $RG --template-file labs/05-bicep/main.bicep \
+  --parameters sshPublicKey="$(cat ~/.ssh/id_rsa.pub)" sshSourceCidr="$MY_IP/32" \
+  --query properties.provisioningState -o tsv
+
+curl --fail --max-time 10 http://$IP
+```
+
+배포가 `Succeeded`이고 웹페이지도 그대로 보이면 성공입니다. 이어서 what-if로 차이를 확인합니다.
 
 ```bash
 az deployment group what-if -g $RG --template-file labs/05-bicep/main.bicep \
@@ -132,7 +142,8 @@ VM·NSG·VNet은 `= Nochange`로 나옵니다. (NIC나 공인 IP는 Azure가 채
 ## 8단계. 정리
 
 ```bash
-az group delete --name $RG --yes --no-wait
+az group delete --name $RG --yes
+az group exists --name $RG   # false면 삭제 완료
 ```
 
 실습 3·4의 그룹(`rg-azlab-net`)을 아직 삭제하지 않았다면 함께 지웁니다.
@@ -145,7 +156,7 @@ az group delete --name $RG --yes --no-wait
 
 - [ ] `what-if`로 배포 전 변경 사항을 확인했다.
 - [ ] 배포 결과가 실습 4와 같은 웹페이지를 보여 주었다.
-- [ ] 같은 템플릿을 다시 what-if 했을 때 VM·NSG·VNet에 변경이 없었다.
+- [ ] 같은 템플릿을 다시 배포해도 웹페이지가 유지되었고, what-if 결과를 확인했다.
 - [ ] 모든 `rg-azlab-*` 그룹을 삭제했다. (`az group list -o table`)
 
 ## 🛠️ 문제 해결

@@ -1,6 +1,6 @@
 # 실습 4. Azure Virtual Machines — cloud-init으로 웹서버 자동 설치
 
-⏱️ 약 25분 · 💰 VM 실행 시간만큼 과금 (`Standard_B2ats_v2` 기준 시간당 수십 원 미만, 리전·시점에 따라 다름. 끝나면 반드시 삭제!)
+⏱️ 약 25분 · 💰 VM 실행 시간과 디스크·공인 IP 사용에 따라 과금 (끝나면 반드시 삭제!)
 
 ## 🎯 목표
 
@@ -88,18 +88,18 @@ az vm run-command invoke -g $RG -n $VM --command-id RunShellScript \
 IP=$(az vm show -d -g $RG -n $VM --query publicIps -o tsv)
 echo http://$IP
 
-curl http://$IP
+curl --fail --max-time 10 http://$IP
 ```
 
 HTML이 출력되면 성공입니다. 브라우저에서 `http://<IP>`를 열어 봐도 됩니다. 🎉
 실습 3에서 만든 `Allow-HTTP` 규칙 덕분에 접속이 가능합니다.
 
-## 6단계. SSH 접속
+## 6단계. SSH 접속 (선택)
 
-실습 3에서 SSH(22)는 **Codespace의 공인 IP**에만 열어 두었으므로 Codespace 터미널에서 접속됩니다.
+실습 3에서 SSH(22)는 **Codespace의 공인 IP**에만 열어 두었습니다. Codespace 터미널에서 접속해 보세요.
 
 ```bash
-ssh -o StrictHostKeyChecking=accept-new azureuser@$IP
+ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new azureuser@$IP
 ```
 
 VM 안에서 확인하고 `exit`로 나옵니다.
@@ -113,8 +113,15 @@ exit
 > 접속이 안 되면 Codespace를 재시작해 공인 IP가 바뀐 경우입니다. 실습 3의 `Allow-SSH-From-MyIP` 규칙의 IP를 갱신하세요.
 > ```bash
 > az network nsg rule update -g $RG --nsg-name nsg-web -n Allow-SSH-From-MyIP \
->   --source-address-prefixes $(curl -s https://api.ipify.org)/32
+>   --source-address-prefixes $(curl -fsS --max-time 20 https://api.ipify.org)/32
 > ```
+
+회사망 등에서 SSH 접속이 제한되어 있다면 이 단계는 건너뛰어도 됩니다. 대신 4단계와 같은 **Run Command**로 VM 안에서 명령을 실행해 보세요. SSH를 전체 인터넷에 열 필요가 없습니다.
+
+```bash
+az vm run-command invoke -g $RG -n $VM --command-id RunShellScript \
+  --scripts "hostname; systemctl is-active nginx" --query "value[0].message" -o tsv
+```
 
 ## 7단계. 🔬 NSG 효과 직접 확인하기
 
@@ -125,10 +132,10 @@ az network nsg rule delete -g $RG --nsg-name nsg-web -n Allow-HTTP
 
 # 적용에 몇 초 걸립니다
 sleep 15
-curl --max-time 5 http://$IP || echo "❌ 차단됨 (시간 초과)"
+curl --max-time 5 http://$IP
 ```
 
-서버는 멀쩡히 켜져 있지만 방화벽이 막아서 접속할 수 없습니다. 이제 규칙을 **복구**합니다.
+`curl: (28)` 시간 초과 오류가 나오면 방화벽이 접속을 막은 것입니다. 다른 오류는 차단 확인으로 간주하지 마세요. 서버는 계속 실행 중입니다. 이제 규칙을 **복구**합니다.
 
 ```bash
 az network nsg rule create \
@@ -138,7 +145,7 @@ az network nsg rule create \
   --destination-address-prefixes '*' --destination-port-ranges 80
 
 sleep 15
-curl --max-time 5 http://$IP | head -n 5
+curl --fail --max-time 10 http://$IP
 ```
 
 다시 접속되면 성공입니다.
@@ -155,7 +162,8 @@ az vm start -g $RG -n $VM         # 다시 시작
 실습을 모두 마쳤다면 **리소스 그룹을 삭제**합니다.
 
 ```bash
-az group delete --name $RG --yes --no-wait
+az group delete --name $RG --yes
+az group exists --name $RG   # false면 삭제 완료
 ```
 
 > 💡 실습 5에서 같은 구성을 Bicep으로 다시 만들어 보므로 이 시점에 삭제하는 것을 권장합니다.
@@ -172,7 +180,7 @@ az group delete --name $RG --yes --no-wait
 |---|---|
 | `curl` 연결 거부/시간 초과 (처음부터) | 4단계 cloud-init 완료 대기를 했는지, `nsg-web`에 `Allow-HTTP`가 있고 서브넷에 연결됐는지 확인 |
 | `ssh: Permission denied (publickey)` | `ls ~/.ssh/id_rsa*` 확인. Codespace를 새로 만들었다면 키가 없으므로 VM을 다시 만드세요. |
-| `ssh` 시간 초과 | 위 6단계의 SSH 규칙 IP 갱신 명령을 실행하세요. 그래도 안 되면 회사망/VPN/프록시 때문에 Azure가 보는 출발지 IP가 `api.ipify.org` 결과와 다를 수 있습니다. 규칙의 출발지를 잠시 `*`로 열고 접속한 뒤 VM에서 `echo $SSH_CLIENT`로 실제 IP를 확인해 그 IP로 되돌리세요. |
+| `ssh` 시간 초과 | 6단계의 SSH 규칙 IP를 갱신하세요. 그래도 안 되면 SSH 대신 Run Command를 사용하세요. 회사망/VPN에서는 접속이 제한되거나 출발지 IP가 다를 수 있습니다. |
 | `cloud-init status`가 `error` | VM 안에서 `sudo cat /var/log/cloud-init-output.log` 확인 |
 | `--custom-data` 파일을 찾을 수 없음 | 저장소 루트에서 실행했는지 확인 (`pwd`) |
 

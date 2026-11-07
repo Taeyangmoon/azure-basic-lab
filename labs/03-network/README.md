@@ -79,7 +79,7 @@ az network nsg rule create \
   --destination-address-prefixes '*' --destination-port-ranges 80
 
 # SSH는 지금 이 Codespace의 공인 IP에서만 허용
-MY_IP=$(curl -s https://api.ipify.org)
+MY_IP=$(curl -fsS --max-time 20 https://api.ipify.org)
 echo $MY_IP
 
 az network nsg rule create \

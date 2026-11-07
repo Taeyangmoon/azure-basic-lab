@@ -12,7 +12,7 @@ Azure를 처음 접하는 분을 위한 **5개의 기초 실습**입니다. 설�
 | # | 실습 | 배우는 것 | 시간 |
 |---|---|---|---|
 | 1 | [실습 환경 준비](./labs/01-setup/README.md) | Codespaces, `az login --use-device-code`, 리소스 그룹 생성·삭제 | 15분 |
-| 2 | [Azure Storage](./labs/02-storage/README.md) | Blob 업로드, SAS, 정적 웹사이트 호스팅 | 20분 |
+| 2 | [Azure Storage](./labs/02-storage/README.md) | 스토리지 계정 생성·조회·삭제, 리전과 LRS | 10분 |
 | 3 | [VNet과 NSG](./labs/03-network/README.md) | 주소 공간, 서브넷, 보안 규칙 | 20분 |
 | 4 | [Virtual Machines](./labs/04-vm/README.md) | Linux VM, cloud-init으로 웹서버 자동 설치 | 25분 |
 | 5 | [Bicep 기초](./labs/05-bicep/README.md) | 3·4번을 코드(IaC)로 재현, what-if | 25분 |
@@ -35,8 +35,8 @@ Azure를 처음 접하는 분을 위한 **5개의 기초 실습**입니다. 설�
 
 ## 💰 비용 주의
 
-- 실습 1·3은 무료, 실습 2는 거의 무료, 실습 4·5는 **VM이 켜져 있는 시간만큼** 과금됩니다.
-- 각 실습 끝에서 **리소스 그룹을 삭제**하세요.
+- 실습 1·2·3의 리소스 생성·조회는 무료입니다. 실습 4·5는 VM 실행 시간과 디스크·공인 IP 사용에 따라 과금됩니다.
+- 실습 1·2·4·5가 끝나면 **리소스 그룹을 삭제**하세요. 실습 3의 그룹은 실습 4에서 이어서 사용합니다.
 - 잊었을 때를 위한 일괄 정리 스크립트:
 
 ```bash
@@ -52,7 +52,7 @@ Azure를 처음 접하는 분을 위한 **5개의 기초 실습**입니다. 설�
 ├── .devcontainer/        # Codespaces 환경 (Azure CLI + Bicep)
 ├── labs/
 │   ├── 01-setup/         # 실습 문서 (README.md = 한국어, README.en.md = English)
-│   ├── 02-storage/web/   # 정적 웹사이트 샘플
+│   ├── 02-storage/       # 스토리지 계정과 리전·LRS
 │   ├── 03-network/
 │   ├── 04-vm/cloud-init.yaml
 │   └── 05-bicep/main.bicep

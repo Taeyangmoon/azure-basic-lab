@@ -105,14 +105,14 @@ az resource list --resource-group $RG -o table
 ## Step 7. Delete it
 
 ```bash
-az group delete --name $RG --yes --no-wait
+az group delete --name $RG --yes
 
 # Confirm (false = deleted)
 az group exists --name $RG
 ```
 
 - `--yes`: skip the confirmation prompt
-- `--no-wait`: return immediately instead of waiting for deletion
+- The command waits for deletion to finish, which can take a few minutes.
 
 ## ✅ Checkpoint
 

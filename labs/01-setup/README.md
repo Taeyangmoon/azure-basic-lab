@@ -107,14 +107,14 @@ az resource list --resource-group $RG -o table
 ## 7단계. 삭제하기
 
 ```bash
-az group delete --name $RG --yes --no-wait
+az group delete --name $RG --yes
 
 # 삭제 완료 확인 (false면 삭제됨)
 az group exists --name $RG
 ```
 
 - `--yes`: 확인 질문 생략
-- `--no-wait`: 삭제가 끝날 때까지 기다리지 않고 바로 반환
+- 삭제가 완료될 때까지 기다립니다. 몇 분 걸릴 수 있습니다.
 
 ## ✅ 체크포인트
 

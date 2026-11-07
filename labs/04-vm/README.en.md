@@ -1,6 +1,6 @@
 # Lab 4. Azure Virtual Machines — Auto-install a Web Server with cloud-init
 
-⏱️ ~25 min · 💰 Billed while the VM runs (`Standard_B2ats_v2` is well under a few cents/hour, varies by region and time. Delete when done!)
+⏱️ ~25 min · 💰 Charges apply for VM runtime, disks and public IPs (delete when done!)
 
 ## 🎯 Goals
 
@@ -88,18 +88,18 @@ az vm run-command invoke -g $RG -n $VM --command-id RunShellScript \
 IP=$(az vm show -d -g $RG -n $VM --query publicIps -o tsv)
 echo http://$IP
 
-curl http://$IP
+curl --fail --max-time 10 http://$IP
 ```
 
 HTML output means success; you can also open `http://<IP>` in a browser. 🎉
 It works thanks to the `Allow-HTTP` rule from Lab 3.
 
-## Step 6. SSH in
+## Step 6. SSH in (optional)
 
-In Lab 3 SSH (22) was opened only to **this Codespace's public IP**, so connect from the Codespace terminal.
+In Lab 3 SSH (22) was opened only to **this Codespace's public IP**. Try connecting from the Codespace terminal.
 
 ```bash
-ssh -o StrictHostKeyChecking=accept-new azureuser@$IP
+ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new azureuser@$IP
 ```
 
 Look around, then `exit`.
@@ -113,8 +113,15 @@ exit
 > If it fails, the Codespace's public IP probably changed (e.g. after a restart). Update the IP in the `Allow-SSH-From-MyIP` rule:
 > ```bash
 > az network nsg rule update -g $RG --nsg-name nsg-web -n Allow-SSH-From-MyIP \
->   --source-address-prefixes $(curl -s https://api.ipify.org)/32
+>   --source-address-prefixes $(curl -fsS --max-time 20 https://api.ipify.org)/32
 > ```
+
+If your network restricts SSH, you can skip this step. Instead, use **Run Command**, as in Step 4, to execute commands inside the VM. You don't need to open SSH to the whole internet.
+
+```bash
+az vm run-command invoke -g $RG -n $VM --command-id RunShellScript \
+  --scripts "hostname; systemctl is-active nginx" --query "value[0].message" -o tsv
+```
 
 ## Step 7. 🔬 See the NSG in action
 
@@ -125,10 +132,10 @@ az network nsg rule delete -g $RG --nsg-name nsg-web -n Allow-HTTP
 
 # Takes a few seconds to apply
 sleep 15
-curl --max-time 5 http://$IP || echo "❌ Blocked (timeout)"
+curl --max-time 5 http://$IP
 ```
 
-The server is running fine, but the firewall blocks you. Now **restore** the rule.
+A `curl: (28)` timeout confirms the firewall blocked the connection. Don't treat other errors as proof of blocking. The server is still running. Now **restore** the rule.
 
 ```bash
 az network nsg rule create \
@@ -138,7 +145,7 @@ az network nsg rule create \
   --destination-address-prefixes '*' --destination-port-ranges 80
 
 sleep 15
-curl --max-time 5 http://$IP | head -n 5
+curl --fail --max-time 10 http://$IP
 ```
 
 If it responds again, you're done.
@@ -155,7 +162,8 @@ az vm start -g $RG -n $VM         # start again
 When you're finished, **delete the resource group**.
 
 ```bash
-az group delete --name $RG --yes --no-wait
+az group delete --name $RG --yes
+az group exists --name $RG   # false means deletion is complete
 ```
 
 > 💡 Lab 5 rebuilds the same setup with Bicep, so deleting now is recommended.
@@ -172,7 +180,7 @@ az group delete --name $RG --yes --no-wait
 |---|---|
 | `curl` refused/timeout from the start | Did you wait for cloud-init (Step 4)? Does `nsg-web` have `Allow-HTTP` and is it attached to the subnet? |
 | `ssh: Permission denied (publickey)` | Check `ls ~/.ssh/id_rsa*`. If you recreated the Codespace the key is gone; recreate the VM. |
-| `ssh` times out | Run the SSH-rule IP update command in Step 6. If it still fails, behind a corporate network/VPN/proxy the IP Azure sees can differ from what `api.ipify.org` reports. Temporarily set the rule's source to `*`, connect, run `echo $SSH_CLIENT` on the VM to see the real IP, then restore the rule with that IP. |
+| `ssh` times out | Update the SSH-rule IP in Step 6. If it still fails, use Run Command instead. Corporate networks/VPNs may restrict SSH or use a different source IP. |
 | `cloud-init status` is `error` | On the VM: `sudo cat /var/log/cloud-init-output.log`. |
 | `--custom-data` file not found | Run from the repo root (`pwd`). |
 

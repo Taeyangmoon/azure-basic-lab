@@ -1,27 +1,31 @@
-# Lab 2. Azure Storage — Blob Upload and Static Website
+# Lab 2. Azure Storage — Create and Explore a Storage Account
 
-⏱️ ~20 min · 💰 Nearly free (cents at most before you delete it)
+⏱️ ~10 min · 💰 Creating and inspecting an account is free
 
 ## 🎯 Goals
 
-- Create a storage account and upload a blob (file).
-- See that files are **private by default**, then share one temporarily with a **SAS token**.
-- Host a static website.
+- Create, inspect and delete a **storage account**.
+- Understand the **region** where data lives and the **LRS** replication option.
+- See an actual resource inside a resource group.
+
+> This lab uses account management commands only, without uploading files or publishing a website. No additional data access roles or network configuration are needed.
 
 ## 📚 Key concepts
 
 | Term | In plain words |
 |---|---|
-| **Storage account** | The "cloud storage building". Blob, file, queue and table services live inside. |
-| **Container** | A folder for blobs (not the same as a Docker container!). |
-| **Blob** | A single file (image, document, video…). |
-| **SAS token** | A temporary pass: "this file, with this permission, for this long". |
-| **Static website** | Serves fixed HTML/CSS/JS directly from storage, no server needed (uses the `$web` container). |
-| **LRS** | The cheapest redundancy option: 3 copies inside one datacenter. |
+| **Storage account** | Azure's "cloud storage building" for files and data |
+| **Blob** | A service for storing files such as images, documents and videos |
+| **Container** | A folder for blobs (not the same as a Docker container!) |
+| **Region** | Where the data is stored. This lab uses `koreacentral` (Korea Central). |
+| **LRS** | Keeps 3 copies of your data inside one datacenter |
+| **StorageV2** | A general-purpose account supporting blobs, files, queues and tables |
+
+> 💡 LRS protects against hardware failures; it is not a backup that restores accidentally deleted files.
 
 ## Step 1. Variables and resource group
 
-A storage account name must be **globally unique**. A stable suffix derived from your subscription ID gives the same name even if you reopen the terminal.
+A storage account name must be **globally unique**, with 3–24 lowercase letters and digits. A stable suffix derived from your subscription ID gives the same name if you reopen the terminal.
 
 ```bash
 RG=rg-azlab-storage
@@ -30,14 +34,8 @@ SUFFIX=$(az account show --query id -o tsv | md5sum | cut -c1-8)
 STORAGE=stazlab$SUFFIX
 echo $STORAGE
 
-# Data operations (uploads etc.) authenticate with your Entra ID login instead of the account key
-export AZURE_STORAGE_AUTH_MODE=login
-export AZURE_STORAGE_ACCOUNT=$STORAGE
-
 az group create --name $RG --location $LOCATION --tags purpose=azlab
 ```
-
-> 💡 We use **Microsoft Entra ID** auth (`--auth-mode login`) instead of account keys. It's more secure and also works on subscriptions where policy blocks key auth (`KeyBasedAuthenticationNotPermitted`). In exchange you must grant yourself a data **RBAC role** (Step 2).
 
 > ⚠️ If you open a new terminal, run the variable block again.
 
@@ -54,102 +52,60 @@ az storage account create \
   --min-tls-version TLS1_2
 ```
 
-- `--allow-blob-public-access false`: blocks anonymous public access at the account level.
-- Takes 1–2 minutes.
+- `--location`: selects the region for your data.
+- `--sku Standard_LRS`: selects standard performance and LRS replication.
+- `--kind StorageV2`: creates a general-purpose storage account.
+- `--allow-blob-public-access false`: prevents anonymous access to regular blobs.
+- Creation can take 1–2 minutes. **You haven't stored any files yet.**
 
-Grant yourself a blob data role. (Management roles such as Owner/Contributor alone can't read or write data.)
-
-```bash
-az role assignment create \
-  --assignee-object-id $(az ad signed-in-user show --query id -o tsv) \
-  --assignee-principal-type User \
-  --role "Storage Blob Data Contributor" \
-  --scope $(az storage account show --name $STORAGE --resource-group $RG --query id -o tsv)
-
-# The role can take 1–2 minutes to take effect
-sleep 60
-```
-
-## Step 3. Upload a blob
+## Step 3. Explore the account
 
 ```bash
-az storage container create --name docs
+# Storage accounts in this resource group
+az storage account list --resource-group $RG \
+  --query "[].{Name:name, Location:location, Replication:sku.name}" -o table
 
-echo "Hello Azure Storage!" > hello.txt
-az storage blob upload --container-name docs --name hello.txt --file hello.txt
-
-az storage blob list --container-name docs --query "[].{Name:name, Size:properties.contentLength}" -o table
+# Inspect one account's settings
+az storage account show --name $STORAGE --resource-group $RG \
+  --query "{Name:name, Location:location, Kind:kind, Replication:sku.name, State:provisioningState}" \
+  -o table
 ```
 
-## Step 4. Private by default — verify
-
-Try to reach the file without credentials.
+Check that `Location` is `koreacentral`, `Kind` is `StorageV2`, `Replication` is `Standard_LRS`, and `State` is `Succeeded`.
 
 ```bash
-curl -i https://$STORAGE.blob.core.windows.net/docs/hello.txt
+# Unlike the empty group in Lab 1, this group now contains a storage resource
+az resource list --resource-group $RG \
+  --query "[].{Name:name, Type:type, Location:location}" -o table
 ```
 
-An **error** such as `409 PublicAccessNotPermitted`, `403` or `404` is the expected result. The file is safely private.
+🌐 In the [Azure Portal](https://portal.azure.com), open **Resource groups** → `rg-azlab-storage` → the storage account's **Overview** to see its name and location.
 
-## Step 5. Share temporarily with a SAS token
-
-Create a 10-minute, read-only link.
+## Step 4. Clean up
 
 ```bash
-EXPIRY=$(date -u -d "+10 minutes" '+%Y-%m-%dT%H:%MZ')
-URL=$(az storage blob generate-sas \
-  --container-name docs --name hello.txt \
-  --permissions r --expiry $EXPIRY --https-only --full-uri --as-user -o tsv)
+# Wait until deletion finishes
+az group delete --name $RG --yes
 
-curl "$URL"
+# false means deletion is complete
+az group exists --name $RG
 ```
 
-`Hello Azure Storage!` means it worked. After 10 minutes the same link stops working.
-
-## Step 6. Host a static website
-
-```bash
-# Enable the feature
-az storage blob service-properties update \
-  --static-website \
-  --index-document index.html \
-  --404-document 404.html
-
-# Upload labs/02-storage/web to the $web container (run from the repo root)
-az storage blob upload-batch --source labs/02-storage/web --destination '$web' --overwrite
-
-# The website URL
-az storage account show --name $STORAGE --resource-group $RG --query "primaryEndpoints.web" -o tsv
-```
-
-`Ctrl+click` the URL in the terminal (or paste it into a browser). 🎉
-
-Also open a non-existent path (e.g. `/nothing`) to see `404.html`.
-
-> 💡 The static website (`$web`) works even though anonymous access is blocked at the account level; regular blob containers stay private.
-
-## Step 7. Clean up
-
-```bash
-az group delete --name $RG --yes --no-wait
-rm -f hello.txt
-```
+The account and its resource group are deleted together. Remember that deleting an account with data in it **also deletes that data**.
 
 ## ✅ Checkpoint
 
-- [ ] Anonymous access was rejected in Step 4.
-- [ ] The SAS link returned the file contents in Step 5.
-- [ ] The website URL showed the "Hello, Azure!" page in Step 6.
+- [ ] You created a storage account.
+- [ ] You checked the region (`koreacentral`) and replication (`Standard_LRS`).
+- [ ] You listed a `Microsoft.Storage/storageAccounts` resource inside the group.
+- [ ] After cleanup, `az group exists` returns `false`.
 
 ## 🛠️ Troubleshooting
 
 | Symptom | Fix |
 |---|---|
-| `StorageAccountAlreadyTaken` | Name collision. Append digits: `STORAGE=stazlab$SUFFIX$RANDOM`. |
-| `date: invalid date` | You're on macOS locally. Run in Codespaces (Linux). |
-| `AuthorizationPermissionMismatch` on upload | Make sure you granted the role in Step 2, then wait another 1–2 minutes. |
-| `AuthorizationFailure` / "network rules" message on upload | Re-run the Step 1 variables (`AZURE_STORAGE_AUTH_MODE=login`). If it persists, see the policy row below. |
-| `publicNetworkAccess` is `Disabled` and reverts when you change it (`az storage account show ... --query publicNetworkAccess`) | An organization/tenant policy forces storage public access off. Steps 5–6 (SAS, static website) can't be reached from the internet then. Use a personal free subscription without such policy, or ask your admin for an exception. |
-| Website returns 403/404 | Make sure `--static-website` ran and files are in `$web`: `az storage blob list -c '$web' -o table`. |
+| `StorageAccountAlreadyTaken` | The name is already in use. Set `STORAGE=stazlab$SUFFIX$RANDOM` and retry Step 2. Keep using this name in new terminals too. |
+| `AuthorizationFailed` | Check the subscription selected in Lab 1 and your permission to create resources. |
+| Variables gone after reopening the terminal | Re-run the Step 1 variable block. |
 
 ⬅️ Previous: [Lab 1](../01-setup/README.en.md) · ➡️ Next: [Lab 3. VNet and NSG](../03-network/README.en.md)

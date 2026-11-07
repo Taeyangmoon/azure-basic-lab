@@ -1,6 +1,6 @@
 # Lab 5. Bicep Basics — Recreate Labs 3 and 4 as Code
 
-⏱️ ~25 min · 💰 Billed while the VM runs (delete when done!)
+⏱️ ~25 min · 💰 Charges apply for VM runtime, disks and public IPs (delete when done!)
 
 ## 🎯 Goals
 
@@ -37,7 +37,7 @@ LOCATION=koreacentral
 # Create an SSH key if you don't have one
 [ -f ~/.ssh/id_rsa.pub ] || ssh-keygen -t rsa -b 4096 -N "" -f ~/.ssh/id_rsa
 
-MY_IP=$(curl -s https://api.ipify.org)
+MY_IP=$(curl -fsS --max-time 20 https://api.ipify.org)
 echo $MY_IP
 
 az group create --name $RG --location $LOCATION --tags purpose=azlab
@@ -103,7 +103,7 @@ az vm run-command invoke -g $RG -n vm-web01 --command-id RunShellScript \
   --scripts "cloud-init status --wait" --query "value[0].message" -o tsv
 
 IP=$(az deployment group show -g $RG -n main --query properties.outputs.publicIp.value -o tsv)
-curl http://$IP
+curl --fail --max-time 10 http://$IP
 ```
 
 You get the **same web page** as in Lab 4: ~20 commands replaced by one file. 🎉
@@ -114,7 +114,17 @@ az resource list -g $RG -o table
 
 ## Step 7. Idempotency and change detection
 
-Run what-if on the **same file** again.
+First **deploy the same file again** to verify the existing resources are preserved.
+
+```bash
+az deployment group create -g $RG --template-file labs/05-bicep/main.bicep \
+  --parameters sshPublicKey="$(cat ~/.ssh/id_rsa.pub)" sshSourceCidr="$MY_IP/32" \
+  --query properties.provisioningState -o tsv
+
+curl --fail --max-time 10 http://$IP
+```
+
+A `Succeeded` deployment and the same web page confirm success. Then check the differences with what-if.
 
 ```bash
 az deployment group what-if -g $RG --template-file labs/05-bicep/main.bicep \
@@ -132,7 +142,8 @@ Revert it to `'80'` afterwards.
 ## Step 8. Clean up
 
 ```bash
-az group delete --name $RG --yes --no-wait
+az group delete --name $RG --yes
+az group exists --name $RG   # false means deletion is complete
 ```
 
 If you haven't yet deleted the Lab 3–4 group (`rg-azlab-net`), remove everything at once:
@@ -145,7 +156,7 @@ If you haven't yet deleted the Lab 3–4 group (`rg-azlab-net`), remove everythi
 
 - [ ] You previewed changes with `what-if` before deploying.
 - [ ] The deployment served the same web page as Lab 4.
-- [ ] Re-running what-if on the same template showed no changes for the VM, NSGs and VNet.
+- [ ] Re-deploying the same template preserved the web page, and you reviewed the what-if result.
 - [ ] All `rg-azlab-*` groups are deleted. (`az group list -o table`)
 
 ## 🛠️ Troubleshooting

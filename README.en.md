@@ -12,7 +12,7 @@
 | # | Lab | You'll learn | Time |
 |---|---|---|---|
 | 1 | [Prepare your environment](./labs/01-setup/README.en.md) | Codespaces, `az login --use-device-code`, create/delete resource groups | 15 min |
-| 2 | [Azure Storage](./labs/02-storage/README.en.md) | Blob upload, SAS, static website hosting | 20 min |
+| 2 | [Azure Storage](./labs/02-storage/README.en.md) | Create/inspect/delete a storage account, regions and LRS | 10 min |
 | 3 | [VNet and NSG](./labs/03-network/README.en.md) | Address spaces, subnets, security rules | 20 min |
 | 4 | [Virtual Machines](./labs/04-vm/README.en.md) | Linux VM, auto-install a web server with cloud-init | 25 min |
 | 5 | [Bicep basics](./labs/05-bicep/README.en.md) | Recreate Labs 3–4 as code (IaC), what-if | 25 min |
@@ -35,8 +35,8 @@ Azure CLI and Bicep come pre-installed in the Codespaces environment ([`.devcont
 
 ## 💰 Cost warning
 
-- Labs 1 and 3 are free, Lab 2 is nearly free, Labs 4–5 are billed **while the VM exists/runs**.
-- **Delete the resource group** at the end of each lab.
+- Creating and inspecting resources in Labs 1–3 is free. Labs 4–5 incur charges for VM runtime, disks and public IPs.
+- **Delete the resource group** after Labs 1, 2, 4 and 5. Keep Lab 3's group for Lab 4.
 - A bulk cleanup script in case you forget:
 
 ```bash
@@ -52,7 +52,7 @@ Azure CLI and Bicep come pre-installed in the Codespaces environment ([`.devcont
 ├── .devcontainer/        # Codespaces environment (Azure CLI + Bicep)
 ├── labs/
 │   ├── 01-setup/         # Lab docs (README.md = Korean, README.en.md = English)
-│   ├── 02-storage/web/   # Static website sample
+│   ├── 02-storage/       # Storage accounts, regions and LRS
 │   ├── 03-network/
 │   ├── 04-vm/cloud-init.yaml
 │   └── 05-bicep/main.bicep
